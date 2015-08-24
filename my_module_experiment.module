@@ -1,0 +1,142 @@
+<?php
+$myBool = 0;
+
+/**
+ * This function defines the URL to the page created etc.
+ */
+function my_module_experiment_menu() {
+  
+  $items = array();
+  $items['my_module/exp-disp'] = array(
+    'title' => t('Search'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('my_module_experiment_my_form'),
+    'access arguments' => t('access content'),
+    'description' => t('Search'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+function my_module_experiment_form() {
+  return drupal_get_form('my_module_experiment_my_form');
+}
+/**
+ * This function gets called in the address bar for
+ * http://yourhost/my_module/form
+ */
+function my_module_experiment_my_form($form, &$form_state) {
+ 
+  $form['bioData'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Accession ID'),
+    
+  );
+  $form['bioData']['accession_id'] = array(
+    '#type' => 'textfield',
+    '#required' => TRUE,
+    '#default_value' => "",
+    '#description' => "Please enter a valid Accession ID in order to begin download.",
+    '#size' => 20,
+    '#maxlength' => 20,
+    '#maclength' => 20,
+  );
+  //Simple button that refreshes the form and clears it 
+  $form['submit'] = array(
+   '#type' => 'submit',
+   '#value' => 'Submit',
+   '#submit' => array('my_module_experiment_my_form_submit'),
+  );
+  return $form;
+}
+function my_module_experiment_my_form_validate($form, &$form_state) {
+  $accession_id = $form_state['values']['accession_id'];
+ global $myBool;
+  if (strlen($accession_id) < 8 || strlen($accession_id) > 10) {
+    form_set_error('Length', 'Accession ID is not 9 characters');
+
+  }
+  
+ $servername = "localhost";
+ $username = "root";
+ $password = "8barrett8";
+ $dbname = "bioData";
+
+ // Create connection
+ $conn = mysql_connect($servername, $username, $password);
+ // Check connection
+ if (!$conn) {
+     die("Connection failed: " . $conn->connect_error);//check connection
+ }
+ $db_select = mysql_select_db($dbname, $conn); //select database
+ $result = mysql_query("SELECT accession_id from bioData");
+ $storeArray = array();//creates array template
+
+
+  while ($row = mysql_fetch_array($result)) {    
+ 	 array_push($storeArray, $row['accession_id']);//creates array
+  }
+  foreach ( $storeArray as $saved_ac_id ) {
+	
+	if(strncmp($saved_ac_id , $accession_id, 9) == 0) {
+
+             form_set_error( 'Accession ID Exists', 'Accession ID Already Exists');
+
+        }
+  }
+
+     
+}
+
+//when submit is clicked
+function my_module_experiment_my_form_submit($form, &$form_state) {
+
+   $ac = $form_state['values']['accession_id'];
+   $url = "http://www.ncbi.nlm.nih.gov/sra/".$ac;
+
+   $ch = curl_init();
+   $timeout = 5;
+   curl_setopt($ch, CURLOPT_URL, $url);
+   curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+   curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+   $html = curl_exec($ch);
+
+   //Dom Parser
+
+   $dom = new DOMDocument();
+
+    //Parse HTML
+   //The @ before the method call suppresses any warnings that
+  //loadHTML might throw because of invalid HTML in the page.
+ //i.e. stuff that isn't my fault
+
+   @$dom->loadHTML($html);
+
+   //Iteration
+
+   foreach($dom->getElementsByTagName('a') as $link) {
+          $string = $link ->getAttribute('title');
+          if(strncmp($string ,"Download run SRR", 15) == 0) {
+
+             $exp_id = substr($string, 12, strlen($string)); 
+          }  
+   }
+       $exp_bit_one = substr($exp_id, 1, 3);
+       $exp_bit_two = substr($exp_id, 1, 6);
+       $exp_bit_three = substr($exp_id, 1, strlen($exp_id));
+       $ftp = "ftp://ftp-trace.ncbi.nlm.nih.gov/sra/sra-instant/reads/ByRun/sra"."/".$exp_bit_one."/".$exp_bit_two."/".$exp_bit_three."/";
+
+       db_insert('bioData')
+       //$e_string= substr($exp_id, 1, strlen($exp_id));
+       ->fields(array(
+       'accession_id' => $form_state['values']['accession_id'],
+       'experiment_id' => $exp_id,
+       'ftp' => $ftp,
+    
+       ))->execute();
+       drupal_set_message(t('Success'.$exp_id));
+    
+}
+
+
+// end beginning
+

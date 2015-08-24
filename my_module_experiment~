@@ -1,0 +1,20 @@
+<?php
+/**
+ * This function defines the URL to the page created etc.
+ */
+function my_module_menu() {
+  
+  $items = array();
+  $items['my_module/exp-disp'] = array(
+    'title' => t('Search'),
+    'page callback' => 'drupal_get_form',
+    //'page arguments' => array('my_module_my_formexp'),
+    'access arguments' => t('access content'),
+    'description' => t('Search'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+function my_module_form() {
+  return drupal_get_form('my_module_my_formexp');
+}
